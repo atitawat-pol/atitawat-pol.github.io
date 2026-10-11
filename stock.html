@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบเช็คสต๊อกประจำวัน</title>
+    <style>
+        * { box-sizing: border-box; font-family: 'Sarabun', -apple-system, sans-serif; margin: 0; padding: 0; }
+        body { background-color: #f1f5f9; color: #1e293b; padding: 15px; }
+
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+
+        header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 20px; }
+        h1 { font-size: 22px; color: #0f172a; margin-bottom: 8px; }
+
+        .date-display { font-size: 16px; color: #3b82f6; font-weight: 600; background: #eff6ff; display: inline-block; padding: 5px 15px; border-radius: 20px; }
+        .last-checked { font-size: 13px; color: #16a34a; margin-top: 8px; }
+
+        .section-title { background-color: #1e293b; color: white; padding: 10px 15px; border-radius: 8px; margin-top: 25px; margin-bottom: 15px; font-size: 18px; }
+        .section-title.fresh { background-color: #0369a1; }
+
+        .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+        .stock-table { width: 100%; min-width: 450px; border-collapse: collapse; margin-bottom: 10px; }
+        .stock-table th { background-color: #f8fafc; color: #475569; font-size: 14px; padding: 12px 5px; text-align: center; border-bottom: 2px solid #cbd5e1; white-space: nowrap; }
+        .stock-table td { padding: 10px 5px; text-align: center; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+
+        .stock-table td:first-child { text-align: left; font-weight: 600; width: 35%; font-size: 15px; white-space: nowrap; }
+
+        input[type="number"] {
+            width: 100%;
+            max-width: 80px;
+            padding: 8px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 16px;
+        }
+        input[type="number"]:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
+
+        .actual-input { background-color: #fefce8; border-color: #fde047 !important; }
+
+        .order-result { font-size: 18px; font-weight: bold; color: #16a34a; }
+
+        .btn-row { display: flex; gap: 10px; margin-top: 30px; }
+        .btn-save, .btn-print { flex: 1; padding: 15px; border: none; border-radius: 8px; font-size: 17px; font-weight: bold; cursor: pointer; }
+        .btn-save { background: #16a34a; color: white; }
+        .btn-save:hover { background: #15803d; }
+        .btn-save:disabled { background: #9bd8b5; cursor: not-allowed; }
+        .btn-print { background: #e2e8f0; color: #334155; }
+        .btn-print:hover { background: #cbd5e1; }
+
+        .save-status { text-align: center; margin-top: 12px; font-size: 14px; color: #16a34a; min-height: 18px; }
+        .back-link { display: block; text-align: center; margin-top: 20px; color: #64748b; font-size: 14px; text-decoration: none; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>📝 บันทึกเช็คสต๊อกประจำวัน</h1>
+            <div id="show-date" class="date-display">กำลังโหลดวันที่...</div>
+            <div id="lastChecked" class="last-checked">กำลังโหลดข้อมูลล่าสุด...</div>
+        </header>
+
+        <h2 class="section-title">🔪 1. ของพร้อมส่ง</h2>
+        <div class="table-responsive">
+            <table class="stock-table" id="table-prepared">
+                <thead>
+                    <tr>
+                        <th>รายการ</th>
+                        <th>ควรมี (กก./แผ่น)</th>
+                        <th>ที่มี (กก./แผ่น)</th>
+                        <th>ต้องสั่งเพิ่ม</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <h2 class="section-title fresh">🥩 2. ของสด</h2>
+        <div class="table-responsive">
+            <table class="stock-table" id="table-fresh">
+                <thead>
+                    <tr>
+                        <th>รายการ</th>
+                        <th>ควรมี (กก./แผ่น)</th>
+                        <th>ที่มี (กก./แผ่น)</th>
+                        <th>ต้องสั่งเพิ่ม</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="btn-row">
+            <button class="btn-save" id="saveBtn">💾 บันทึกเข้าระบบ</button>
+            <button class="btn-print" onclick="window.print()">🖨️ พิมพ์</button>
+        </div>
+        <div class="save-status" id="saveStatus"></div>
+        <a class="back-link" href="index.html">&larr; กลับหน้ารวม</a>
+    </div>
+
+    <script>
+        // นำ URL ที่ก็อปปี้จาก Apps Script Deployment มาใส่ตรงนี้ (ใช้ URL เดียวกันทั้ง 3 หน้า)
+        const API_URL = "https://script.google.com/macros/s/AKfycbw5R3G6R0UUqwazm95-P6TlaTu_qCm5ztYmjyc1QjYd7SdTLNjAF2PF9xIxlgkB2al-/exec";
+
+        // รายการสต๊อกทั้งหมด — เพิ่ม/แก้รายการใหม่ได้ที่นี่ที่เดียว ไม่ต้องแก้ HTML
+        const STOCK_ITEMS = [
+            { category: 'prepared', name: 'หมูหมัก', target: 10 },
+            { category: 'prepared', name: 'หมูตุ๋น', target: 10 },
+            { category: 'prepared', name: 'ตับหมูสไลด์', target: 5 },
+            { category: 'prepared', name: 'เนื้อหมัก', target: 10 },
+            { category: 'prepared', name: 'เนื้อตุ๋น', target: 10 },
+            { category: 'prepared', name: 'ตับวัวสไลด์', target: 5 },
+            { category: 'prepared', name: 'หมูกรอบ อบแล้ว (แผ่น)', target: 10 },
+            { category: 'prepared', name: 'ขาตั้งหมู (กก)', target: 10 },
+            { category: 'prepared', name: 'เป็ดย่าง (ห่อ)', target: 10 },
+            { category: 'prepared', name: 'เนื้อสับ (ห่อ)', target: 10 },
+            { category: 'prepared', name: 'หมูสับ (ห่อ)', target: 10 },
+            { category: 'prepared', name: 'กุ้ง (ห่อ)', target: 10 },
+            { category: 'fresh', name: 'สะโพกหมู', target: 20 },
+            { category: 'fresh', name: 'ขั้วตับหมู', target: 15 },
+            { category: 'fresh', name: 'ตับหมูแช่แข็ง', target: 10 },
+            { category: 'fresh', name: 'สะโพกวัว', target: 20 },
+            { category: 'fresh', name: 'ชายโครงวัว', target: 15 },
+            { category: 'fresh', name: 'ตับวัวแช่แข็ง', target: 10 },
+            { category: 'fresh', name: 'หมูสามชั้นดิบ (แผ่นใหญ่)', target: 10 },
+            { category: 'fresh', name: 'หมูสับ (กก)', target: 15 },
+            { category: 'fresh', name: 'เนื้อสับ (กก)', target: 15 },
+            { category: 'fresh', name: 'เป็ดย่าง (กก)', target: 15 },
+            { category: 'fresh', name: 'กุ้ง', target: 15 }
+        ];
+
+        function displayCurrentDate() {
+            const dateObj = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const formattedDate = dateObj.toLocaleDateString('th-TH', options);
+            document.getElementById('show-date').innerText = "📅 ประจำ" + formattedDate;
+        }
+
+        function formatDateTime(iso) {
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return iso;
+            return d.toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        // ดึงข้อมูลการเช็คสต๊อกครั้งล่าสุดมาแสดง และเติมลงในช่องกรอกให้อัตโนมัติ
+        function loadLastCheck() {
+            fetch(API_URL + '?action=getStockChecks')
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    if (!data.success) throw new Error(data.error || 'unknown error');
+                    const check = data.stockCheck || { items: [] };
+                    const lastCheckedEl = document.getElementById('lastChecked');
+
+                    if (!check.timestamp) {
+                        lastCheckedEl.innerText = 'ยังไม่มีการเช็คสต๊อกก่อนหน้านี้';
+                        return;
+                    }
+                    const viaDelivery = String(check.source || '').indexOf('delivery') === 0;
+                    lastCheckedEl.innerText = (viaDelivery ? '🚚 ตัดสต๊อกจากการส่งของล่าสุดเมื่อ ' : '🕒 บันทึกล่าสุดเมื่อ ') + formatDateTime(check.timestamp);
+
+                    const lookup = {};
+                    (check.items || []).forEach(function (i) {
+                        lookup[i.category + '|' + i.name] = i;
+                    });
+
+                    STOCK_ITEMS.forEach(function (item, idx) {
+                        const found = lookup[item.category + '|' + item.name];
+                        if (!found) return; // รายการใหม่ที่ยังไม่เคยเช็ค ใช้ค่าเริ่มต้นตามปกติ
+                        const row = document.querySelector('tr[data-index="' + idx + '"]');
+                        if (!row) return;
+                        row.querySelector('.target-input').value = found.target;
+                        row.querySelector('.actual-input').value = found.actual;
+                        calculate(row.querySelector('.actual-input'));
+                    });
+                })
+                .catch(function () {
+                    document.getElementById('lastChecked').innerText = 'โหลดข้อมูลล่าสุดไม่สำเร็จ';
+                });
+        }
+
+        function buildTables() {
+            const bodies = { prepared: document.querySelector('#table-prepared tbody'), fresh: document.querySelector('#table-fresh tbody') };
+            STOCK_ITEMS.forEach(function (item, idx) {
+                const tr = document.createElement('tr');
+                tr.dataset.index = idx;
+                tr.innerHTML =
+                    '<td>' + item.name + '</td>' +
+                    '<td><input type="number" class="target-input" value="' + item.target + '" min="0"></td>' +
+                    '<td><input type="number" class="actual-input" placeholder="0" min="0"></td>' +
+                    '<td class="order-result">' + item.target + '</td>';
+                bodies[item.category].appendChild(tr);
+            });
+            document.querySelectorAll('.target-input, .actual-input').forEach(function (input) {
+                input.addEventListener('input', function () { calculate(input); });
+            });
+        }
+
+        function calculate(element) {
+            const row = element.closest('tr');
+            const target = parseFloat(row.querySelector('.target-input').value) || 0;
+            const actual = parseFloat(row.querySelector('.actual-input').value) || 0;
+
+            let order = target - actual;
+            if (order < 0) order = 0;
+
+            const resultCell = row.querySelector('.order-result');
+            resultCell.innerText = order;
+            resultCell.style.color = order > 0 ? '#e11d48' : '#16a34a';
+        }
+
+        function collectItems() {
+            return STOCK_ITEMS.map(function (item, idx) {
+                const row = document.querySelector('tr[data-index="' + idx + '"]');
+                const target = parseFloat(row.querySelector('.target-input').value) || 0;
+                const actual = parseFloat(row.querySelector('.actual-input').value) || 0;
+                const needOrder = Math.max(0, target - actual);
+                return { category: item.category, name: item.name, target: target, actual: actual, needOrder: needOrder };
+            });
+        }
+
+        function saveStockCheck() {
+            const saveBtn = document.getElementById('saveBtn');
+            const statusEl = document.getElementById('saveStatus');
+            const payload = {
+                action: 'submitStockCheck',
+                timestamp: new Date().toISOString(),
+                items: collectItems()
+            };
+
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = 'กำลังบันทึก...';
+            statusEl.innerText = '';
+
+            fetch(API_URL, {
+                method: 'POST',
+                mode: 'no-cors', // อ่าน response ไม่ได้ แต่ข้อมูลจะถูกบันทึกตามปกติ
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).then(function () {
+                statusEl.innerText = '✅ บันทึกแล้วเมื่อ ' + new Date().toLocaleTimeString('th-TH');
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '💾 บันทึกเข้าระบบ';
+            }).catch(function () {
+                statusEl.style.color = '#e11d48';
+                statusEl.innerText = '❌ บันทึกไม่สำเร็จ กรุณาลองใหม่';
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '💾 บันทึกเข้าระบบ';
+            });
+        }
+
+        document.getElementById('saveBtn').addEventListener('click', saveStockCheck);
+
+        window.onload = function () {
+            displayCurrentDate();
+            buildTables();
+            loadLastCheck();
+        };
+    </script>
+</body>
+</html>

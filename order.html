@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>สั่งวัตถุดิบ - ฝั่งสาขา</title>
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            padding: 20px;
+            max-width: 420px;
+            margin: auto;
+            background-color: #f8f9fa;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        h2 { text-align: center; color: #333; }
+        .item { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; color: #555;}
+        input[type="number"], input[type="text"], select {
+            width: 100%;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        .section-label { font-size: 13px; font-weight: 700; color: #94a3b8; margin: 18px 0 8px; text-transform: none; }
+        .section-title { color: white; padding: 10px 15px; border-radius: 8px; margin: 20px 0 12px; font-size: 16px; font-weight: 700; }
+        .section-title.food { background-color: #1e293b; }
+        .section-title.drink { background-color: #92400e; }
+        .section-title.supplies { background-color: #0f766e; }
+        .section-title.veg { background-color: #15803d; }
+        .section-title.dessert { background-color: #be185d; }
+        .section-title.krapao { background-color: #b91c1c; }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #06C755; /* สีเขียว LINE */
+            color: white;
+            border: none;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        button:hover { background-color: #05a546; }
+        button:disabled { background-color: #9bd8b5; cursor: not-allowed; }
+        .back-link { display: block; text-align: center; margin-top: 15px; color: #64748b; font-size: 14px; text-decoration: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>ฟอร์มสั่งของเข้าสาขา</h2>
+    <form id="orderForm">
+        <div class="item">
+            <label>ชื่อสาขา:</label>
+            <select id="branchName" required>
+                <option value="" disabled selected>-- เลือกสาขา --</option>
+                <option value="ห้วยขวาง">ห้วยขวาง</option>
+                <option value="ประชาราษฎร์บำเพ็ญ">ประชาราษฎร์บำเพ็ญ</option>
+            </select>
+        </div>
+
+        <h3 class="section-title food">🍜 ก๋วยเตี๋ยว</h3>
+        <div id="foodItemsContainer"></div>
+
+        <h3 class="section-title veg">🥬 ผัก</h3>
+        <div id="vegItemsContainer"></div>
+
+        <h3 class="section-title dessert">🍮 ขนม</h3>
+        <div id="dessertItemsContainer"></div>
+
+        <h3 class="section-title krapao">🌿 ผัดกะเพรา</h3>
+        <div id="krapaoItemsContainer"></div>
+
+        <h3 class="section-title drink">🧋 ชานม กัตโตะชา</h3>
+        <div id="drinkItemsContainer"></div>
+
+        <h3 class="section-title supplies">🛍️ ของใช้ทั่วไป</h3>
+        <div id="suppliesItemsContainer"></div>
+
+
+        <button type="submit">ส่งออเดอร์ให้ครัวกลาง</button>
+    </form>
+    <a class="back-link" href="index.html">&larr; กลับหน้ารวม</a>
+</div>
+
+<script>
+    // นำ URL ที่ก็อปปี้จาก Apps Script Deployment มาใส่ตรงนี้ (ใช้ URL เดียวกันทั้ง 3 หน้า)
+    const API_URL = "https://script.google.com/macros/s/AKfycbw5R3G6R0UUqwazm95-P6TlaTu_qCm5ztYmjyc1QjYd7SdTLNjAF2PF9xIxlgkB2al-/exec";
+
+    // รายการที่สาขาสั่งได้ — เพิ่ม/ลบ/แก้รายการใหม่ได้ที่นี่ที่เดียว ไม่ต้องแก้ HTML ส่วนอื่น
+    const ORDER_ITEMS = [
+        { section: 'food', name: 'กากหมูเจียว (กล่อง)' },
+        { section: 'food', name: 'แคบหมู (ห่อ)' },
+        { section: 'food', name: 'หมูหมัก' },
+        { section: 'food', name: 'ตับหมูสไลด์' },
+        { section: 'food', name: 'หมูตุ๋น' },
+        { section: 'food', name: 'เนื้อหมัก' },
+        { section: 'food', name: 'ตับวัวสไลด์' },
+        { section: 'food', name: 'เนื้อเปื่อย' },
+        { section: 'food', name: 'ขาตั้งหมู' },
+        { section: 'veg', name: 'ผักบุ้งไทย' },
+        { section: 'veg', name: 'ถั่วงอก' },
+        { section: 'veg', name: 'ผักชีฝรั่ง' },
+        { section: 'veg', name: 'ผักชีไทย' },
+        { section: 'dessert', name: 'ขนมถ้วย' },
+        { section: 'krapao', name: 'หมูหมัก ผัดกะเพรา' },
+        { section: 'krapao', name: 'หมูกรอบ (แผ่น)' },
+        { section: 'krapao', name: 'น้ำมันหมู' },
+        { section: 'krapao', name: 'เป็ดย่าง' },
+        { section: 'krapao', name: 'หมูสับ' },
+        { section: 'krapao', name: 'เนื้อสับ' },
+        { section: 'krapao', name: 'กุ้งสับ' },
+        { section: 'drink', name: 'ชานม (แกลลอน)' },
+        { section: 'drink', name: 'ชาเขียวใส (แกลลอน)' },
+        { section: 'drink', name: 'ชาไทย (แกลลอน)' },
+        { section: 'drink', name: 'ชาเขียวนม (แกลลอน)' },
+        { section: 'drink', name: 'กาแฟ (แกลลอน)' },
+        { section: 'drink', name: 'ชานม (ขวด)' },
+        { section: 'drink', name: 'ชาเขียวใส (ขวด)' },
+        { section: 'drink', name: 'ชาไทย (ขวด)' },
+        { section: 'drink', name: 'ชาเขียวนม (ขวด)' },
+        { section: 'drink', name: 'กาแฟ (ขวด)' },
+        { section: 'drink', name: 'ไข่มุก (ถุง)' },
+        { section: 'supplies', name: 'ถุงร้อน 6x9' },
+        { section: 'supplies', name: 'ถุงหิ้ว 7x15' },
+        { section: 'supplies', name: 'ถุงหิ้ว 8x16' },
+        { section: 'supplies', name: 'ถุงหิ้ว 9x18' },
+        { section: 'supplies', name: 'ถุงหิ้ว 12x20' },
+        { section: 'supplies', name: 'ตะเกียบ' },
+        { section: 'supplies', name: 'ช้อนสั้น' },
+        { section: 'supplies', name: 'ถุงแพ็คหมู 4.5x7' },
+        { section: 'supplies', name: 'ถุงซิปน้ำปลา 5x7' },
+        { section: 'supplies', name: 'ถ้วยคราฟ 750ml' }
+    ];
+
+    function buildItemInputs() {
+        const containers = {
+            food: document.getElementById('foodItemsContainer'),
+            drink: document.getElementById('drinkItemsContainer'),
+            supplies: document.getElementById('suppliesItemsContainer'),
+            veg: document.getElementById('vegItemsContainer'),
+            dessert: document.getElementById('dessertItemsContainer'),
+            krapao: document.getElementById('krapaoItemsContainer')
+        };
+        ORDER_ITEMS.forEach(function (item, idx) {
+            const div = document.createElement('div');
+            div.className = 'item';
+            div.innerHTML =
+                '<label>' + (idx + 1) + '. ' + item.name + ':</label>' +
+                '<input type="number" class="qty-input" data-name="' + item.name + '" min="0" value="0">';
+            containers[item.section].appendChild(div);
+        });
+    }
+
+    function collectItems() {
+        const inputs = document.querySelectorAll('.qty-input');
+        const items = [];
+        inputs.forEach(function (input) {
+            const qty = parseInt(input.value) || 0;
+            if (qty > 0) {
+                items.push({ name: input.dataset.name, qty: qty });
+            }
+        });
+        return items;
+    }
+
+    document.getElementById('orderForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        const items = collectItems();
+        if (items.length === 0) {
+            alert('กรุณาใส่จำนวนอย่างน้อย 1 รายการ');
+            return;
+        }
+
+        const orderData = {
+            action: 'submitOrder',
+            branch: document.getElementById('branchName').value,
+            items: items,
+            timestamp: new Date().toISOString()
+        };
+
+        const submitBtn = document.querySelector('button[type="submit"]');
+        submitBtn.innerHTML = "กำลังส่งออเดอร์...";
+        submitBtn.disabled = true;
+
+        fetch(API_URL, {
+            method: 'POST',
+            mode: 'no-cors', // สำคัญ: ป้องกันปัญหาการข้ามโดเมน (CORS) — จะอ่าน response ไม่ได้ แต่ยิงข้อมูลได้ปกติ
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(orderData)
+        }).then(function () {
+            alert(`ส่งออเดอร์ของ ${orderData.branch} เรียบร้อยแล้ว!`);
+            document.getElementById('orderForm').reset();
+            submitBtn.innerHTML = "ส่งออเดอร์ให้ครัวกลาง";
+            submitBtn.disabled = false;
+        }).catch(function () {
+            alert('เกิดข้อผิดพลาดในการส่ง กรุณาลองใหม่');
+            submitBtn.innerHTML = "ส่งออเดอร์ให้ครัวกลาง";
+            submitBtn.disabled = false;
+        });
+    });
+
+    buildItemInputs();
+</script>
+
+</body>
+</html>
