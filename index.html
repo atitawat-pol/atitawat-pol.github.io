@@ -210,9 +210,20 @@
         return o.itemsSummary || '-';
     }
 
+    // ดึง JSON จาก Apps Script พร้อมลองใหม่อัตโนมัติ (Apps Script ล่ม/ช้าชั่วคราวเป็นครั้งคราวเป็นเรื่องปกติ)
+    function fetchJson(url, tries) {
+        tries = tries || 3;
+        return fetch(url).then(function (res) {
+            return res.json();
+        }).catch(function (err) {
+            if (tries <= 1) throw err;
+            return new Promise(function (resolve) { setTimeout(resolve, 1500); })
+                .then(function () { return fetchJson(url, tries - 1); });
+        });
+    }
+
     function loadOrders() {
-        fetch(API_URL + '?action=getOrders&open=1') // ออเดอร์ที่ยังไม่ปิดทั้งหมด (รอดำเนินการ + ค้างส่ง) ไม่ว่าเก่าแค่ไหน
-            .then(function (res) { return res.json(); })
+        fetchJson(API_URL + '?action=getOrders&open=1') // ออเดอร์ที่ยังไม่ปิดทั้งหมด (รอดำเนินการ + ค้างส่ง) ไม่ว่าเก่าแค่ไหน
             .then(function (data) {
                 document.getElementById('ordersError').style.display = 'none';
                 if (!data.success) throw new Error(data.error || 'unknown error');
@@ -241,11 +252,10 @@
                 });
             })
             .catch(function (err) {
-                document.getElementById('pendingOrdersCount').innerText = '–';
-                document.getElementById('partialCount').innerText = '';
+                // ไม่ล้างตัวเลข/ตารางเดิม — ยังโชว์ข้อมูลล่าสุดที่โหลดได้ไว้ก่อน
                 const errEl = document.getElementById('ordersError');
                 errEl.style.display = 'block';
-                errEl.innerText = 'โหลดออเดอร์ไม่สำเร็จ — ตรวจสอบ API_URL หรือลองรีเฟรชอีกครั้ง';
+                errEl.innerText = 'เชื่อมต่อระบบไม่ได้ชั่วคราว (ข้อมูลที่เห็นอาจเก่า) — กำลังลองใหม่อัตโนมัติ หรือกดรีเฟรช';
             });
     }
 
@@ -253,8 +263,7 @@
     const DASHBOARD_STOCK_CATEGORY = 'prepared'; // หน้าหลักโชว์เฉพาะหมวด "ของพร้อมส่ง"
 
     function loadStockSummary() {
-        fetch(API_URL + '?action=getStockChecks')
-            .then(function (res) { return res.json(); })
+        fetchJson(API_URL + '?action=getStockChecks')
             .then(function (data) {
                 document.getElementById('stockError').style.display = 'none';
                 if (!data.success) throw new Error(data.error || 'unknown error');
@@ -290,10 +299,10 @@
                 });
             })
             .catch(function () {
-                document.getElementById('needReorderCount').innerText = '–';
+                // ไม่ล้างตัวเลข/ตารางเดิม — ยังโชว์ข้อมูลล่าสุดที่โหลดได้ไว้ก่อน
                 const errEl = document.getElementById('stockError');
                 errEl.style.display = 'block';
-                errEl.innerText = 'โหลดสต๊อกไม่สำเร็จ — ตรวจสอบ API_URL หรือลองรีเฟรชอีกครั้ง';
+                errEl.innerText = 'เชื่อมต่อระบบไม่ได้ชั่วคราว (ข้อมูลที่เห็นอาจเก่า) — กำลังลองใหม่อัตโนมัติ หรือกดรีเฟรช';
             });
     }
 
@@ -441,7 +450,8 @@
 
     function refreshAll() {
         loadOrders();
-        loadStockSummary();
+        // เว้นช่วงเล็กน้อย ไม่ยิง 2 คำขอพร้อมกัน ลดโอกาสโดน Apps Script จำกัด
+        setTimeout(loadStockSummary, 800);
     }
 
     document.getElementById('refreshBtn').addEventListener('click', refreshAll);
@@ -449,7 +459,7 @@
     window.onload = function () {
         displayCurrentDate();
         refreshAll();
-        setInterval(refreshAll, REFRESH_INTERVAL_MS);
+        setInterval(function () { if (!document.hidden) refreshAll(); }, REFRESH_INTERVAL_MS); // แท็บที่ซ่อนอยู่ไม่ต้องรีเฟรช
     };
 </script>
 
