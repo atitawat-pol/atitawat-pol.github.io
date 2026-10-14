@@ -35,6 +35,7 @@
         .section-title.drink { background-color: #92400e; }
         .section-title.supplies { background-color: #0f766e; }
         .section-title.veg { background-color: #15803d; }
+        .section-title.bbq { background-color: #a16207; }
         .section-title.dessert { background-color: #be185d; }
         .section-title.krapao { background-color: #b91c1c; }
         button {
@@ -82,8 +83,11 @@
         <h3 class="section-title food">🍜 ก๋วยเตี๋ยว</h3>
         <div id="foodItemsContainer"></div>
 
-        <h3 class="section-title veg">🥬 ผัก</h3>
+        <h3 class="section-title veg">🥬 ผักก๋วยเตี๋ยว</h3>
         <div id="vegItemsContainer"></div>
+
+        <h3 class="section-title bbq">🥘 ผักหมูกระทะ</h3>
+        <div id="bbqItemsContainer"></div>
 
         <h3 class="section-title dessert">🍮 ขนม</h3>
         <div id="dessertItemsContainer"></div>
@@ -122,6 +126,9 @@
         { section: 'veg', name: 'ถั่วงอก' },
         { section: 'veg', name: 'ผักชีฝรั่ง' },
         { section: 'veg', name: 'ผักชีไทย' },
+        { section: 'bbq', name: 'เห็ดเข็มทอง (ถุง)' },
+        { section: 'bbq', name: 'ผักกาดขาว (โล)' },
+        { section: 'bbq', name: 'ผักบุ้งจีน (โล)' },
         { section: 'dessert', name: 'ขนมถ้วย' },
         { section: 'krapao', name: 'หมูหมัก ผัดกะเพรา' },
         { section: 'krapao', name: 'หมูกรอบ (แผ่น)' },
@@ -160,6 +167,7 @@
             drink: document.getElementById('drinkItemsContainer'),
             supplies: document.getElementById('suppliesItemsContainer'),
             veg: document.getElementById('vegItemsContainer'),
+            bbq: document.getElementById('bbqItemsContainer'),
             dessert: document.getElementById('dessertItemsContainer'),
             krapao: document.getElementById('krapaoItemsContainer')
         };
