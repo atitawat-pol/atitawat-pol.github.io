@@ -68,6 +68,17 @@
             </select>
         </div>
 
+        <div class="item">
+            <label>รอบส่ง:</label>
+            <select id="deliveryRound" required>
+                <option value="" disabled selected>-- เลือกรอบส่ง --</option>
+                <option value="ส่งด่วน">🚨 1. ส่งด่วน (ของหมด)</option>
+                <option value="ภายใน 2 ชม.">⏱️ 2. ส่งภายใน 2 ชั่วโมง (ของกำลังจะหมด)</option>
+                <option value="ส่งเช้า">🌅 3. ส่งเช้า</option>
+                <option value="ส่งเย็น">🌇 4. ส่งเย็น</option>
+            </select>
+        </div>
+
         <h3 class="section-title food">🍜 ก๋วยเตี๋ยว</h3>
         <div id="foodItemsContainer"></div>
 
@@ -119,6 +130,7 @@
         { section: 'krapao', name: 'หมูสับ' },
         { section: 'krapao', name: 'เนื้อสับ' },
         { section: 'krapao', name: 'กุ้งสับ' },
+        { section: 'krapao', name: 'ไก่ชิ้น' },
         { section: 'drink', name: 'ชานม (แกลลอน)' },
         { section: 'drink', name: 'ชาเขียวใส (แกลลอน)' },
         { section: 'drink', name: 'ชาไทย (แกลลอน)' },
@@ -185,6 +197,7 @@
         const orderData = {
             action: 'submitOrder',
             branch: document.getElementById('branchName').value,
+            deliveryRound: document.getElementById('deliveryRound').value,
             items: items,
             timestamp: new Date().toISOString()
         };
