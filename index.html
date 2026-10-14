@@ -43,6 +43,11 @@
         .orders-table td:first-child, .orders-table td:nth-child(2) { text-align: left; font-weight: 600; }
         .status-pill { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; background: #fef3c7; color: #92400e; white-space: nowrap; }
         .status-pill.done { background: #dcfce7; color: #166534; }
+        .round-pill { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; white-space: nowrap; background: #e2e8f0; color: #334155; }
+        .round-pill.urgent { background: #dc2626; color: #fff; }
+        .round-pill.soon { background: #f97316; color: #fff; }
+        .round-pill.morning { background: #fef3c7; color: #92400e; }
+        .round-pill.evening { background: #e0e7ff; color: #3730a3; }
         .status-pill.partial { background: #fee2e2; color: #b91c1c; }
         .items-summary { max-width: 220px; white-space: normal; }
         .btn-complete { border: none; background: #16a34a; color: white; font-size: 12px; padding: 6px 12px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
@@ -146,6 +151,7 @@
                 <thead>
                     <tr>
                         <th>เวลา</th>
+                        <th>รอบส่ง</th>
                         <th>สาขา</th>
                         <th>รายการที่สั่ง</th>
                         <th>สถานะ</th>
@@ -222,6 +228,19 @@
         });
     }
 
+    // ลำดับความเร่งด่วนของรอบส่ง (น้อย = ขึ้นก่อน)
+    const ROUND_INFO = {
+        'ส่งด่วน':       { rank: 0, cls: 'urgent',  label: '🚨 ส่งด่วน' },
+        'ภายใน 2 ชม.':   { rank: 1, cls: 'soon',    label: '⏱️ ภายใน 2 ชม.' },
+        'ส่งเช้า':       { rank: 2, cls: 'morning', label: '🌅 ส่งเช้า' },
+        'ส่งเย็น':       { rank: 3, cls: 'evening', label: '🌇 ส่งเย็น' }
+    };
+    function roundRank(o) { return ROUND_INFO[o.deliveryRound] ? ROUND_INFO[o.deliveryRound].rank : 9; }
+    function roundCell(o) {
+        const info = ROUND_INFO[o.deliveryRound];
+        return info ? '<span class="round-pill ' + info.cls + '">' + info.label + '</span>' : '<span style="color:#94a3b8;">-</span>';
+    }
+
     function loadOrders() {
         fetchJson(API_URL + '?action=getOrders&open=1') // ออเดอร์ที่ยังไม่ปิดทั้งหมด (รอดำเนินการ + ค้างส่ง) ไม่ว่าเก่าแค่ไหน
             .then(function (data) {
@@ -239,11 +258,17 @@
                 tbody.innerHTML = '';
                 document.getElementById('ordersEmpty').style.display = pendingOrders.length ? 'none' : 'block';
 
+                // เรียงตามรอบส่ง (ด่วนก่อน) แล้วตามเวลาสั่ง (เก่าก่อน)
+                pendingOrders.sort(function (a, b) {
+                    return roundRank(a) - roundRank(b) || new Date(a.timestamp) - new Date(b.timestamp);
+                });
+
                 pendingOrders.forEach(function (o) {
                     const isPartial = o.status === 'ค้างส่ง';
                     const tr = document.createElement('tr');
                     tr.innerHTML =
                         '<td>' + esc(formatTime(o.timestamp)) + '</td>' +
+                        '<td>' + roundCell(o) + '</td>' +
                         '<td>' + esc(o.branch) + '</td>' +
                         '<td class="items-summary">' + esc(orderSummaryText(o)) + '</td>' +
                         '<td><span class="' + (isPartial ? 'status-pill partial' : 'status-pill') + '">' + esc(o.status) + '</span></td>' +
