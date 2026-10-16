@@ -35,6 +35,7 @@
         .section-title.drink { background-color: #92400e; }
         .section-title.supplies { background-color: #0f766e; }
         .section-title.veg { background-color: #15803d; }
+        .section-title.seasoning { background-color: #0369a1; }
         .section-title.bbq { background-color: #a16207; }
         .section-title.dessert { background-color: #be185d; }
         .section-title.krapao { background-color: #b91c1c; }
@@ -86,6 +87,9 @@
         <h3 class="section-title veg">🥬 ผักก๋วยเตี๋ยว</h3>
         <div id="vegItemsContainer"></div>
 
+        <h3 class="section-title seasoning">🧂 เครื่องปรุงก๋วยเตี๋ยว</h3>
+        <div id="seasoningItemsContainer"></div>
+
         <h3 class="section-title bbq">🥘 ผักหมูกระทะ</h3>
         <div id="bbqItemsContainer"></div>
 
@@ -126,6 +130,14 @@
         { section: 'veg', name: 'ถั่วงอก' },
         { section: 'veg', name: 'ผักชีฝรั่ง' },
         { section: 'veg', name: 'ผักชีไทย' },
+        { section: 'seasoning', name: 'น้ำปลา (แกลลอน)' },
+        { section: 'seasoning', name: 'น้ำส้ม (แกลลอน)' },
+        { section: 'seasoning', name: 'พริกป่น ก๋วยเตี๋ยว (ถุง)' },
+        { section: 'seasoning', name: 'น้ำตาลทรายลิน (ถุง)' },
+        { section: 'seasoning', name: 'เส้นเล็ก (ห่อ)' },
+        { section: 'seasoning', name: 'บะหมี่เหลือง (ห่อ)' },
+        { section: 'seasoning', name: 'หมี่ขาว (ห่อ)' },
+        { section: 'seasoning', name: 'วุ้นเส้น (ห่อ)' },
         { section: 'bbq', name: 'เห็ดเข็มทอง (ถุง)' },
         { section: 'bbq', name: 'ผักกาดขาว (โล)' },
         { section: 'bbq', name: 'ผักบุ้งจีน (โล)' },
@@ -167,6 +179,7 @@
             drink: document.getElementById('drinkItemsContainer'),
             supplies: document.getElementById('suppliesItemsContainer'),
             veg: document.getElementById('vegItemsContainer'),
+            seasoning: document.getElementById('seasoningItemsContainer'),
             bbq: document.getElementById('bbqItemsContainer'),
             dessert: document.getElementById('dessertItemsContainer'),
             krapao: document.getElementById('krapaoItemsContainer')
