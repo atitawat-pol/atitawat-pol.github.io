@@ -52,6 +52,18 @@
 
         .save-status { text-align: center; margin-top: 12px; font-size: 14px; color: #16a34a; min-height: 18px; }
         .back-link { display: block; text-align: center; margin-top: 20px; color: #64748b; font-size: 14px; text-decoration: none; }
+        .time-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; text-align: left; }
+        .time-box { border-radius: 10px; padding: 10px 12px; border: 2px solid transparent; }
+        .time-box .t-label { font-size: 12px; font-weight: 700; }
+        .time-box .t-value { font-size: 18px; font-weight: 700; margin-top: 2px; line-height: 1.3; }
+        .time-box .t-ago { font-size: 12px; margin-top: 1px; }
+        .time-box.count { background: #dbeafe; border-color: #3b82f6; color: #1e3a8a; }
+        .time-box.count.stale { background: #fee2e2; border-color: #dc2626; color: #991b1b; }
+        .time-box.deduct { background: #ffedd5; border-color: #f97316; color: #9a3412; }
+        .time-box.deduct.none { background: #f1f5f9; border-color: #cbd5e1; color: #64748b; }
+        .stale-banner { background: #dc2626; color: white; border-radius: 10px; padding: 10px 12px; font-size: 14px; font-weight: 600; margin-top: 10px; line-height: 1.5; text-align: left; }
+        .stale-banner.ok { background: #16a34a; }
+        @media print { .time-row, .stale-banner { display: none !important; } }
     </style>
 </head>
 <body>
@@ -61,6 +73,19 @@
             <h1>📝 บันทึกเช็คสต๊อกประจำวัน</h1>
             <div id="show-date" class="date-display">กำลังโหลดวันที่...</div>
             <div id="lastChecked" class="last-checked">กำลังโหลดข้อมูลล่าสุด...</div>
+            <div class="time-row" id="timeRow" style="display:none;">
+                <div class="time-box count" id="countBox">
+                    <div class="t-label">📝 เช็คสต๊อกล่าสุด</div>
+                    <div class="t-value" id="countTime">–</div>
+                    <div class="t-ago" id="countAgo"></div>
+                </div>
+                <div class="time-box deduct none" id="deductBox">
+                    <div class="t-label">🚚 ตัดสต๊อกจากส่งของ</div>
+                    <div class="t-value" id="deductTime">–</div>
+                    <div class="t-ago" id="deductAgo"></div>
+                </div>
+            </div>
+            <div class="stale-banner" id="staleBanner" style="display:none;"></div>
         </header>
 
         <h2 class="section-title">🔪 1. ของพร้อมส่ง</h2>
@@ -149,6 +174,64 @@
         }
 
         // ดึงข้อมูลการเช็คสต๊อกครั้งล่าสุดมาแสดง และเติมลงในช่องกรอกให้อัตโนมัติ
+        // "3 ชม. ที่แล้ว" / "1 วัน 2 ชม. ที่แล้ว"
+        function agoText(ts) {
+            const d = new Date(ts);
+            if (isNaN(d.getTime())) return '';
+            const min = Math.max(0, Math.floor((Date.now() - d.getTime()) / 60000));
+            if (min < 1) return 'เมื่อสักครู่';
+            if (min < 60) return min + ' นาทีที่แล้ว';
+            const h = Math.floor(min / 60);
+            if (h < 24) return h + ' ชม. ที่แล้ว';
+            return Math.floor(h / 24) + ' วัน ' + (h % 24) + ' ชม. ที่แล้ว';
+        }
+        function shortTime(iso) {
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return iso;
+            return d.toLocaleString('th-TH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+        function isToday(ts) {
+            const d = new Date(ts);
+            return !isNaN(d.getTime()) && d.toDateString() === new Date().toDateString();
+        }
+
+        // เวลาเช็คจริง (สีฟ้า / แดงถ้าวันนี้ยังไม่เช็ค) + เวลาตัดสต๊อกจากส่งของ (สีส้ม) แบบเดียวกับหน้าหลัก
+        function renderStockTimes(check, lastCountAt, backendKnowsCount) {
+            const viaDelivery = String(check.source || '').indexOf('delivery') === 0;
+            const countAt = lastCountAt || (!viaDelivery ? check.timestamp : null);
+            const unknown = !countAt && !backendKnowsCount; // backend เก่ายังไม่ส่ง lastCountAt
+            document.getElementById('timeRow').style.display = 'grid';
+            document.getElementById('countTime').innerText = countAt ? shortTime(countAt) : (unknown ? 'ไม่ทราบ' : 'ยังไม่เคยเช็ค');
+            document.getElementById('countAgo').innerText = countAt ? agoText(countAt) : (unknown ? 'รอ Deploy Code.gs เวอร์ชันใหม่' : '');
+            const stale = !unknown && (!countAt || !isToday(countAt));
+            document.getElementById('countBox').classList.toggle('stale', stale);
+
+            const deductBox = document.getElementById('deductBox');
+            if (viaDelivery && check.timestamp) {
+                document.getElementById('deductTime').innerText = shortTime(check.timestamp);
+                document.getElementById('deductAgo').innerText = agoText(check.timestamp);
+                deductBox.classList.remove('none');
+            } else {
+                document.getElementById('deductTime').innerText = 'ยังไม่มี';
+                document.getElementById('deductAgo').innerText = 'ยังไม่ได้ส่งของหลังเช็คล่าสุด';
+                deductBox.classList.add('none');
+            }
+
+            const banner = document.getElementById('staleBanner');
+            if (stale) {
+                banner.className = 'stale-banner';
+                banner.innerText = '⚠️ วันนี้ยังไม่มีใครเช็คสต๊อก' + (countAt ? ' (เช็คล่าสุด ' + agoText(countAt) + ')' : '') +
+                    ' — ตัวเลขที่เติมไว้ด้านล่างคือยอดล่าสุดในระบบ กรุณานับของจริงแล้วแก้ช่อง "ที่มี" ให้ตรง แล้วกด "บันทึกเข้าระบบ"';
+                banner.style.display = 'block';
+            } else if (countAt) {
+                banner.className = 'stale-banner ok';
+                banner.innerText = '✅ วันนี้เช็คสต๊อกแล้ว — ถ้านับใหม่อีกรอบ แก้ตัวเลขแล้วกดบันทึกได้เลย';
+                banner.style.display = 'block';
+            } else {
+                banner.style.display = 'none';
+            }
+        }
+
         function loadLastCheck() {
             fetch(API_URL + '?action=getStockChecks')
                 .then(function (res) { return res.json(); })
@@ -161,8 +244,8 @@
                         lastCheckedEl.innerText = 'ยังไม่มีการเช็คสต๊อกก่อนหน้านี้';
                         return;
                     }
-                    const viaDelivery = String(check.source || '').indexOf('delivery') === 0;
-                    lastCheckedEl.innerText = (viaDelivery ? '🚚 ตัดสต๊อกจากการส่งของล่าสุดเมื่อ ' : '🕒 บันทึกล่าสุดเมื่อ ') + formatDateTime(check.timestamp);
+                    lastCheckedEl.style.display = 'none';
+                    renderStockTimes(check, data.lastCountAt, 'lastCountAt' in data);
 
                     const lookup = {};
                     (check.items || []).forEach(function (i) {
@@ -244,6 +327,8 @@
                 body: JSON.stringify(payload)
             }).then(function () {
                 statusEl.innerText = '✅ บันทึกแล้วเมื่อ ' + new Date().toLocaleTimeString('th-TH');
+                // อัปเดตกรอบเวลาทันที: เช็คแล้ววันนี้ (สีฟ้า) และยังไม่มีการตัดสต๊อกหลังเช็ค
+                renderStockTimes({ timestamp: payload.timestamp, source: 'count' }, payload.timestamp, true);
                 saveBtn.disabled = false;
                 saveBtn.innerHTML = '💾 บันทึกเข้าระบบ';
             }).catch(function () {
