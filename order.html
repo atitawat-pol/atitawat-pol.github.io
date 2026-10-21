@@ -134,6 +134,8 @@
         { section: 'veg', name: 'ผักชีฝรั่ง' },
         { section: 'veg', name: 'ผักชีไทย' },
         { section: 'veg', name: 'มะนาว (โล)' },
+        { section: 'veg', name: 'โหระพา (โล)' },
+        { section: 'veg', name: 'ใบเตย (บาท)' },
         { section: 'seasoning', name: 'น้ำปลา (แกลลอน)' },
         { section: 'seasoning', name: 'น้ำส้ม (แกลลอน)' },
         { section: 'seasoning', name: 'พริกป่น ก๋วยเตี๋ยว (ถุง)' },
@@ -195,7 +197,7 @@
             div.className = 'item';
             div.innerHTML =
                 '<label>' + (idx + 1) + '. ' + item.name + ':</label>' +
-                '<input type="number" class="qty-input" data-name="' + item.name + '" min="0" value="0">';
+                '<input type="number" class="qty-input" data-name="' + item.name + '" min="0" step="any" inputmode="decimal" value="0">'; // ใส่ทศนิยมได้ เช่น 0.5 โล
             containers[item.section].appendChild(div);
         });
     }
@@ -204,7 +206,7 @@
         const inputs = document.querySelectorAll('.qty-input');
         const items = [];
         inputs.forEach(function (input) {
-            const qty = parseInt(input.value) || 0;
+            const qty = Math.round((parseFloat(input.value) || 0) * 1000) / 1000; // รองรับครึ่งโล (0.5)
             if (qty > 0) {
                 items.push({ name: input.dataset.name, qty: qty });
             }
