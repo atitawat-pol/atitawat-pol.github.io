@@ -62,6 +62,23 @@
         .need-value.alert { color: #e11d48; }
         .need-value.ok { color: #16a34a; }
 
+        .time-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+        .time-box { border-radius: 10px; padding: 10px 12px; border: 2px solid transparent; }
+        .time-box .t-label { font-size: 12px; font-weight: 700; }
+        .time-box .t-value { font-size: 18px; font-weight: 700; margin-top: 2px; line-height: 1.3; }
+        .time-box .t-ago { font-size: 12px; margin-top: 1px; }
+        .time-box.count { background: #dbeafe; border-color: #3b82f6; color: #1e3a8a; }
+        .time-box.count.stale { background: #fee2e2; border-color: #dc2626; color: #991b1b; }
+        .time-box.deduct { background: #ffedd5; border-color: #f97316; color: #9a3412; }
+        .time-box.deduct.none { background: #f1f5f9; border-color: #cbd5e1; color: #64748b; }
+        .stale-banner { background: #dc2626; color: white; border-radius: 10px; padding: 10px 12px; font-size: 14px; font-weight: 600; margin-bottom: 12px; line-height: 1.5; }
+        .stale-banner a { color: white; text-decoration: underline; font-weight: 700; }
+        .stock-section { font-size: 14px; font-weight: 700; color: white; padding: 7px 12px; border-radius: 8px; margin: 14px 0 6px; }
+        .stock-section.prepared { background: #1e293b; }
+        .stock-section.fresh { background: #b45309; }
+        .target-value { color: #94a3b8; }
+        .orders-table.stock-table { min-width: 0; } /* 4 คอลัมน์พอดีจอมือถือ ไม่ต้องเลื่อนข้าง */
+        .stock-table td:nth-child(2) { font-weight: 700; text-align: center; }
         .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.55); display: flex; align-items: center; justify-content: center; padding: 15px; z-index: 50; }
         .modal { background: white; border-radius: 14px; width: 100%; max-width: 480px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 40px rgba(0,0,0,0.25); }
         .modal-title { font-size: 18px; font-weight: 700; color: #0f172a; padding: 18px 18px 4px; }
@@ -103,7 +120,8 @@
         </div>
         <div class="stat-card">
             <div class="stat-value" id="needReorderCount">–</div>
-            <div class="stat-label">รายการต้องสั่งเพิ่ม</div>
+            <div class="stat-label">ของพร้อมส่งต้องทำเพิ่ม</div>
+            <div class="stat-sub" id="freshNeedCount"></div>
         </div>
     </div>
 
@@ -123,18 +141,49 @@
     <div class="panel">
         <div class="panel-head">
             <div class="panel-title">สต๊อกล่าสุด</div>
-            <span class="stat-sub" id="stockCheckedAt">–</span>
         </div>
+
+        <div class="time-row">
+            <div class="time-box count" id="countBox">
+                <div class="t-label">📝 เช็คสต๊อกล่าสุด</div>
+                <div class="t-value" id="countTime">–</div>
+                <div class="t-ago" id="countAgo"></div>
+            </div>
+            <div class="time-box deduct none" id="deductBox">
+                <div class="t-label">🚚 ตัดสต๊อกจากส่งของ</div>
+                <div class="t-value" id="deductTime">–</div>
+                <div class="t-ago" id="deductAgo"></div>
+            </div>
+        </div>
+        <div class="stale-banner" id="staleBanner" style="display:none;"></div>
+
+        <div class="stock-section prepared">🔪 ของพร้อมส่ง</div>
         <div class="table-responsive">
-            <table class="orders-table" id="stockTable">
+            <table class="orders-table stock-table" id="stockTable">
                 <thead>
                     <tr>
                         <th>รายการ</th>
                         <th>ที่มี</th>
-                        <th>ต้องสั่งเพิ่ม</th>
+                        <th>ควรมี</th>
+                        <th>ต้องทำเพิ่ม</th>
                     </tr>
                 </thead>
                 <tbody id="stockBody"></tbody>
+            </table>
+        </div>
+
+        <div class="stock-section fresh">🥩 ของสด (วัตถุดิบดิบ ยังไม่ได้เตรียม)</div>
+        <div class="table-responsive">
+            <table class="orders-table stock-table" id="freshTable">
+                <thead>
+                    <tr>
+                        <th>รายการ</th>
+                        <th>ที่มี</th>
+                        <th>ควรมี</th>
+                        <th>ต้องสั่งซื้อ</th>
+                    </tr>
+                </thead>
+                <tbody id="freshBody"></tbody>
             </table>
         </div>
         <div id="stockEmpty" class="empty-state" style="display:none;">ยังไม่มีการเช็คสต๊อก</div>
@@ -285,7 +334,76 @@
     }
 
     const CATEGORY_LABELS = { prepared: 'พร้อมส่ง', fresh: 'สด' };
-    const DASHBOARD_STOCK_CATEGORY = 'prepared'; // หน้าหลักโชว์เฉพาะหมวด "ของพร้อมส่ง"
+
+    // "3 ชม. ที่แล้ว" / "1 วัน 2 ชม. ที่แล้ว"
+    function agoText(ts) {
+        const d = new Date(ts);
+        if (isNaN(d.getTime())) return '';
+        const min = Math.max(0, Math.floor((Date.now() - d.getTime()) / 60000));
+        if (min < 1) return 'เมื่อสักครู่';
+        if (min < 60) return min + ' นาทีที่แล้ว';
+        const h = Math.floor(min / 60);
+        if (h < 24) return h + ' ชม. ที่แล้ว';
+        return Math.floor(h / 24) + ' วัน ' + (h % 24) + ' ชม. ที่แล้ว';
+    }
+    function isToday(ts) {
+        const d = new Date(ts);
+        return !isNaN(d.getTime()) && d.toDateString() === new Date().toDateString();
+    }
+
+    function renderStockRows(tbodyId, items, sortByNeed) {
+        const tbody = document.getElementById(tbodyId);
+        tbody.innerHTML = '';
+        const list = sortByNeed
+            ? items.slice().sort(function (a, b) { return Number(b.needOrder) - Number(a.needOrder); }) // ของขาดขึ้นก่อน
+            : items;
+        list.forEach(function (i) {
+            const need = Number(i.needOrder) || 0;
+            const tr = document.createElement('tr');
+            tr.innerHTML =
+                '<td>' + esc(i.name) + '</td>' +
+                '<td>' + esc(i.actual) + '</td>' +
+                '<td class="target-value">' + esc(i.target) + '</td>' +
+                '<td class="' + (need > 0 ? 'need-value alert' : 'need-value ok') + '">' + need + '</td>';
+            tbody.appendChild(tr);
+        });
+        if (!list.length) tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8;font-weight:400;">ไม่มีข้อมูล</td></tr>';
+    }
+
+    function renderStockTimes(check, lastCountAt, backendKnowsCount) {
+        const countBox = document.getElementById('countBox');
+        const deductBox = document.getElementById('deductBox');
+        const banner = document.getElementById('staleBanner');
+
+        // เวลาเช็คสต๊อกจริง (ถ้า backend เวอร์ชันเก่ายังไม่ส่ง lastCountAt มา ใช้ชุดล่าสุดถ้าเป็นการนับ)
+        const viaDelivery = String(check.source || '').indexOf('delivery') === 0;
+        const countAt = lastCountAt || (!viaDelivery ? check.timestamp : null);
+        const unknown = !countAt && !backendKnowsCount; // backend เก่า: ไม่รู้เวลาเช็คจริง ไม่ฟันธงว่าไม่ได้เช็ค
+        document.getElementById('countTime').innerText = countAt ? formatTime(countAt) : (unknown ? 'ไม่ทราบ' : 'ยังไม่เคยเช็ค');
+        document.getElementById('countAgo').innerText = countAt ? agoText(countAt) : (unknown ? 'รอ Deploy Code.gs เวอร์ชันใหม่' : '');
+        const stale = !unknown && (!countAt || !isToday(countAt));
+        countBox.classList.toggle('stale', stale);
+
+        // เวลาตัดสต๊อก: มีเฉพาะเมื่อชุดล่าสุดมาจากการส่งของ (หลังเช็คล่าสุด)
+        if (viaDelivery && check.timestamp) {
+            document.getElementById('deductTime').innerText = formatTime(check.timestamp);
+            document.getElementById('deductAgo').innerText = agoText(check.timestamp);
+            deductBox.classList.remove('none');
+        } else {
+            document.getElementById('deductTime').innerText = 'ยังไม่มี';
+            document.getElementById('deductAgo').innerText = 'ยังไม่ได้ส่งของหลังเช็คล่าสุด';
+            deductBox.classList.add('none');
+        }
+
+        if (stale) {
+            banner.style.display = 'block';
+            banner.innerHTML = '⚠️ วันนี้ยังไม่มีใครเช็คสต๊อก — ตัวเลขด้านล่างคือยอดเช็คล่าสุด' +
+                (countAt ? ' (' + esc(agoText(countAt)) + ')' : '') +
+                ' หักของที่ส่งไปแล้ว อาจไม่ตรงกับของจริง<br>ใครว่างช่วย <a href="stock.html">กดเช็คสต๊อก</a> ได้เลย';
+        } else {
+            banner.style.display = 'none';
+        }
+    }
 
     function loadStockSummary() {
         fetchJson(API_URL + '?action=getStockChecks')
@@ -294,34 +412,22 @@
                 if (!data.success) throw new Error(data.error || 'unknown error');
 
                 const check = data.stockCheck || { items: [] };
-                const items = (check.items || []).filter(function (i) { return i.category === DASHBOARD_STOCK_CATEGORY; });
+                const all = check.items || [];
+                const prepared = all.filter(function (i) { return i.category === 'prepared'; });
+                const fresh = all.filter(function (i) { return i.category === 'fresh'; });
+
                 preparedStock = {};
-                items.forEach(function (i) { preparedStock[i.name] = Number(i.actual) || 0; });
-                const needReorder = items.filter(function (i) { return Number(i.needOrder) > 0; }).length;
+                prepared.forEach(function (i) { preparedStock[i.name] = Number(i.actual) || 0; });
 
-                document.getElementById('needReorderCount').innerText = check.timestamp ? needReorder : '–';
-                const viaDelivery = String(check.source || '').indexOf('delivery') === 0;
-                document.getElementById('stockCheckedAt').innerText = check.timestamp
-                    ? (viaDelivery ? 'ตัดสต๊อกจากการส่งของ ' : 'เช็คล่าสุด ') + formatTime(check.timestamp)
-                    : '';
+                const prepNeed = prepared.filter(function (i) { return Number(i.needOrder) > 0; }).length;
+                const freshNeed = fresh.filter(function (i) { return Number(i.needOrder) > 0; }).length;
+                document.getElementById('needReorderCount').innerText = check.timestamp ? prepNeed : '–';
+                document.getElementById('freshNeedCount').innerText = check.timestamp ? 'ของสดต้องสั่งซื้อ ' + freshNeed + ' รายการ' : '';
 
-                const tbody = document.getElementById('stockBody');
-                tbody.innerHTML = '';
-                document.getElementById('stockEmpty').style.display = items.length ? 'none' : 'block';
-
-                // เรียงรายการที่ต้องสั่งเพิ่มขึ้นก่อน เพื่อให้เห็นของขาดง่าย
-                const sorted = items.slice().sort(function (a, b) { return Number(b.needOrder) - Number(a.needOrder); });
-
-                sorted.forEach(function (i) {
-                    const need = Number(i.needOrder) || 0;
-                    const needClass = need > 0 ? 'need-value alert' : 'need-value ok';
-                    const tr = document.createElement('tr');
-                    tr.innerHTML =
-                        '<td>' + esc(i.name) + '</td>' +
-                        '<td>' + esc(i.actual) + '</td>' +
-                        '<td class="' + needClass + '">' + need + '</td>';
-                    tbody.appendChild(tr);
-                });
+                document.getElementById('stockEmpty').style.display = all.length ? 'none' : 'block';
+                renderStockTimes(check, data.lastCountAt, 'lastCountAt' in data);
+                renderStockRows('stockBody', prepared, true);
+                renderStockRows('freshBody', fresh, true);
             })
             .catch(function () {
                 // ไม่ล้างตัวเลข/ตารางเดิม — ยังโชว์ข้อมูลล่าสุดที่โหลดได้ไว้ก่อน
