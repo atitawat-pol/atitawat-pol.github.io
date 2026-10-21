@@ -49,7 +49,6 @@
         .round-pill.morning { background: #fef3c7; color: #92400e; }
         .round-pill.evening { background: #e0e7ff; color: #3730a3; }
         .status-pill.partial { background: #fee2e2; color: #b91c1c; }
-        .items-summary { max-width: 220px; white-space: normal; }
         .btn-complete { border: none; background: #16a34a; color: white; font-size: 12px; padding: 6px 12px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
         .btn-complete:hover { background: #15803d; }
         .btn-complete:disabled { background: #9bd8b5; cursor: not-allowed; }
@@ -79,6 +78,24 @@
         .target-value { color: #94a3b8; }
         .orders-table.stock-table { min-width: 0; } /* 4 คอลัมน์พอดีจอมือถือ ไม่ต้องเลื่อนข้าง */
         .stock-table td:nth-child(2) { font-weight: 700; text-align: center; }
+        .orders-list { display: flex; flex-direction: column; gap: 10px; }
+        .order-card { border: 1px solid #e2e8f0; border-left: 5px solid #94a3b8; border-radius: 10px; padding: 12px; }
+        .order-card.r-urgent { border-left-color: #dc2626; background: #fef2f2; }
+        .order-card.r-soon { border-left-color: #f97316; background: #fff7ed; }
+        .order-card.r-morning { border-left-color: #eab308; }
+        .order-card.r-evening { border-left-color: #6366f1; }
+        .oc-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+        .oc-branch { font-size: 16px; font-weight: 700; color: #0f172a; }
+        .oc-time { font-size: 12px; color: #64748b; width: 100%; }
+        .oc-items { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); column-gap: 18px; }
+        .oc-items li { display: flex; justify-content: space-between; gap: 8px; font-size: 15px; padding: 5px 0; border-bottom: 1px dashed #e2e8f0; }
+        .oc-items li b { white-space: nowrap; }
+        .oc-items li .left { color: #b91c1c; font-size: 12px; font-weight: 600; }
+        .oc-note { margin-top: 8px; background: #fef9c3; border: 1px solid #fde047; border-radius: 8px; padding: 8px 10px; font-size: 14px; white-space: pre-wrap; }
+        .oc-note b { color: #854d0e; }
+        .oc-foot { display: flex; justify-content: flex-end; margin-top: 10px; }
+        .oc-foot .btn-complete { font-size: 14px; padding: 9px 16px; }
+        #sendModalNote { margin: 0 18px 8px; }
         .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.55); display: flex; align-items: center; justify-content: center; padding: 15px; z-index: 50; }
         .modal { background: white; border-radius: 14px; width: 100%; max-width: 480px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 40px rgba(0,0,0,0.25); }
         .modal-title { font-size: 18px; font-weight: 700; color: #0f172a; padding: 18px 18px 4px; }
@@ -195,21 +212,7 @@
             <div class="panel-title">ออเดอร์รอส่งจากสาขา</div>
             <button class="refresh-btn" id="refreshBtn">🔄 รีเฟรช</button>
         </div>
-        <div class="table-responsive">
-            <table class="orders-table" id="ordersTable">
-                <thead>
-                    <tr>
-                        <th>เวลา</th>
-                        <th>รอบส่ง</th>
-                        <th>สาขา</th>
-                        <th>รายการที่สั่ง</th>
-                        <th>สถานะ</th>
-                        <th>จัดการ</th>
-                    </tr>
-                </thead>
-                <tbody id="ordersBody"></tbody>
-            </table>
-        </div>
+        <div class="orders-list" id="ordersList"></div>
         <div id="ordersEmpty" class="empty-state" style="display:none;">ไม่มีออเดอร์รอส่งตอนนี้</div>
         <div id="ordersError" class="error-state" style="display:none;"></div>
     </div>
@@ -219,6 +222,7 @@
     <div class="modal">
         <div class="modal-title" id="sendModalTitle"></div>
         <div class="modal-sub">ใส่จำนวนที่ส่งรอบนี้ — ส่วนที่ยังไม่ครบจะค้างส่งไว้ และระบบจะตัดสต๊อกตามจำนวนที่ส่ง</div>
+        <div id="sendModalNote" class="oc-note" style="display:none;"></div>
         <div id="sendModalItems"></div>
         <div class="send-foot">
             <label class="close-rest"><input type="checkbox" id="closeRest" onchange="updateSendSummary()"> ปิดออเดอร์เลย (ไม่ส่งส่วนที่ค้างอีก)</label>
@@ -256,15 +260,6 @@
         return d.innerHTML;
     }
 
-    // ออเดอร์ที่ค้างส่ง: โชว์เฉพาะรายการที่ยังไม่ครบ เช่น "หมูหมัก ค้าง 1/5"
-    function orderSummaryText(o) {
-        if (o.status === 'ค้างส่ง') {
-            const left = (o.items || []).filter(function (i) { return Number(i.remaining) > 0; });
-            return left.map(function (i) { return i.name + ' ค้าง ' + i.remaining + '/' + i.qty; }).join(', ') || '-';
-        }
-        return o.itemsSummary || '-';
-    }
-
     // ดึง JSON จาก Apps Script พร้อมลองใหม่อัตโนมัติ (Apps Script ล่ม/ช้าชั่วคราวเป็นครั้งคราวเป็นเรื่องปกติ)
     function fetchJson(url, tries) {
         tries = tries || 3;
@@ -290,6 +285,49 @@
         return info ? '<span class="round-pill ' + info.cls + '">' + info.label + '</span>' : '<span style="color:#94a3b8;">-</span>';
     }
 
+    // แยกหน่วยจากวงเล็บท้ายชื่อ เช่น "ผักบุ้งจีน (โล)" -> ผักบุ้งจีน / โล
+    function splitUnit(name) {
+        const m = String(name).match(/^(.*?)\s*\(([^()]+)\)\s*$/);
+        return m ? { base: m[1], unit: m[2] } : { base: String(name), unit: '' };
+    }
+    function agoShort(ts) {
+        const min = Math.floor((Date.now() - new Date(ts).getTime()) / 60000);
+        if (isNaN(min)) return '';
+        if (min < 60) return Math.max(0, min) + ' นาทีที่แล้ว';
+        if (min < 1440) return Math.floor(min / 60) + ' ชม. ที่แล้ว';
+        return Math.floor(min / 1440) + ' วันที่แล้ว';
+    }
+
+    // การ์ดออเดอร์: 1 รายการต่อ 1 บรรทัด อ่านง่ายบนมือถือ
+    function orderCard(o) {
+        const isPartial = o.status === 'ค้างส่ง';
+        const info = ROUND_INFO[o.deliveryRound];
+        const card = document.createElement('div');
+        card.className = 'order-card' + (info ? ' r-' + info.cls : '');
+
+        const items = (o.items || []).filter(function (i) { return !isPartial || Number(i.remaining) > 0; });
+        let itemsHtml = items.map(function (i) {
+            const u = splitUnit(i.name);
+            const unit = u.unit ? ' ' + esc(u.unit) : '';
+            const qty = isPartial
+                ? i.remaining + unit + ' <span class="left">(ค้าง จากสั่ง ' + i.qty + ')</span>'
+                : i.qty + unit;
+            return '<li><span>' + esc(u.base) + '</span><b>' + qty + '</b></li>';
+        }).join('');
+
+        card.innerHTML =
+            '<div class="oc-head">' + roundCell(o) +
+                '<span class="oc-branch">' + esc(o.branch) + '</span>' +
+                '<span class="' + (isPartial ? 'status-pill partial' : 'status-pill') + '">' + esc(o.status) + '</span>' +
+                '<span class="oc-time">สั่งเมื่อ ' + esc(formatTime(o.timestamp)) + ' · ' + esc(agoShort(o.timestamp)) + '</span>' +
+            '</div>' +
+            (itemsHtml ? '<ul class="oc-items">' + itemsHtml + '</ul>' : '') +
+            (o.note ? '<div class="oc-note"><b>📝 สั่งเพิ่ม:</b>\n' + esc(o.note) + '</div>' : '') +
+            '<div class="oc-foot"><button class="btn-complete">' + (isPartial ? '📦 ส่งส่วนที่ค้าง' : '📦 ส่งของ') + '</button></div>';
+        card.querySelector('.btn-complete').addEventListener('click', function () { openSendModal(o.orderId); });
+        return card;
+    }
+
     function loadOrders() {
         fetchJson(API_URL + '?action=getOrders&open=1') // ออเดอร์ที่ยังไม่ปิดทั้งหมด (รอดำเนินการ + ค้างส่ง) ไม่ว่าเก่าแค่ไหน
             .then(function (data) {
@@ -303,8 +341,8 @@
                 const partialCount = pendingOrders.filter(function (o) { return o.status === 'ค้างส่ง'; }).length;
                 document.getElementById('partialCount').innerText = partialCount ? 'ในนี้ค้างส่ง ' + partialCount : '';
 
-                const tbody = document.getElementById('ordersBody');
-                tbody.innerHTML = '';
+                const list = document.getElementById('ordersList');
+                list.innerHTML = '';
                 document.getElementById('ordersEmpty').style.display = pendingOrders.length ? 'none' : 'block';
 
                 // เรียงตามรอบส่ง (ด่วนก่อน) แล้วตามเวลาสั่ง (เก่าก่อน)
@@ -312,18 +350,7 @@
                     return roundRank(a) - roundRank(b) || new Date(a.timestamp) - new Date(b.timestamp);
                 });
 
-                pendingOrders.forEach(function (o) {
-                    const isPartial = o.status === 'ค้างส่ง';
-                    const tr = document.createElement('tr');
-                    tr.innerHTML =
-                        '<td>' + esc(formatTime(o.timestamp)) + '</td>' +
-                        '<td>' + roundCell(o) + '</td>' +
-                        '<td>' + esc(o.branch) + '</td>' +
-                        '<td class="items-summary">' + esc(orderSummaryText(o)) + '</td>' +
-                        '<td><span class="' + (isPartial ? 'status-pill partial' : 'status-pill') + '">' + esc(o.status) + '</span></td>' +
-                        '<td><button class="btn-complete" onclick="openSendModal(\'' + o.orderId + '\')">' + (isPartial ? '📦 ส่งส่วนที่ค้าง' : '📦 ส่งของ') + '</button></td>';
-                    tbody.appendChild(tr);
-                });
+                pendingOrders.forEach(function (o) { list.appendChild(orderCard(o)); });
             })
             .catch(function (err) {
                 // ไม่ล้างตัวเลข/ตารางเดิม — ยังโชว์ข้อมูลล่าสุดที่โหลดได้ไว้ก่อน
@@ -447,7 +474,10 @@
         if (!order) return;
         modalOrder = order;
         modalItems = (order.items || []).filter(function (i) { return Number(i.remaining) > 0; });
-        if (modalItems.length === 0) return;
+        const noteEl = document.getElementById('sendModalNote');
+        noteEl.style.display = order.note ? 'block' : 'none';
+        noteEl.innerHTML = order.note ? '<b>📝 สั่งเพิ่ม (ไม่ตัดสต๊อก) อย่าลืมส่งด้วย:</b>\n' + esc(order.note) : '';
+        if (modalItems.length === 0 && !order.note) return;
         document.getElementById('sendModalTitle').textContent =
             (order.status === 'ค้างส่ง' ? 'ส่งส่วนที่ค้าง — ' : 'ยืนยันการส่งของ — ') + order.branch;
 
@@ -483,7 +513,10 @@
             updateSendMeta(idx);
         });
 
-        document.getElementById('closeRest').checked = false;
+        // ออเดอร์ที่มีแค่ "สั่งเพิ่ม": ไม่มีรายการให้กรอก กดยืนยัน = ส่งแล้วปิดออเดอร์
+        const noteOnly = modalItems.length === 0;
+        document.getElementById('closeRest').checked = noteOnly;
+        document.getElementById('closeRest').closest('label').style.display = noteOnly ? 'none' : '';
         updateSendSummary();
         const btn = document.getElementById('sendConfirmBtn');
         btn.disabled = false;
@@ -528,7 +561,10 @@
             const qty = Math.max(0, Number(inputs[idx].value) || 0);
             if (r3(item.remaining - qty) > 0) left++;
         });
-        if (document.getElementById('closeRest').checked) {
+        if (modalItems.length === 0) {
+            el.textContent = 'กดยืนยันเมื่อส่งของตามรายการสั่งเพิ่มแล้ว — ออเดอร์จะถูกปิด';
+            el.className = 'send-summary ok';
+        } else if (document.getElementById('closeRest').checked) {
             el.textContent = 'ออเดอร์จะถูกปิด — ส่วนที่ยังไม่ส่งจะไม่ถูกส่งอีก';
             el.className = 'send-summary';
         } else if (left > 0) {
@@ -558,7 +594,7 @@
             alert('กรอกจำนวนที่ส่งอย่างน้อย 1 รายการ หรือติ๊ก "ปิดออเดอร์เลย"');
             return;
         }
-        if (total === 0 && closeRest && !confirm('ปิดออเดอร์โดยไม่ส่งของเลย ยืนยัน?')) return;
+        if (total === 0 && closeRest && modalItems.length > 0 && !confirm('ปิดออเดอร์โดยไม่ส่งของเลย ยืนยัน?')) return;
 
         const btn = document.getElementById('sendConfirmBtn');
         btn.disabled = true;

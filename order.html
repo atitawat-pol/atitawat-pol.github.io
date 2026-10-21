@@ -53,6 +53,35 @@
         }
         button:hover { background-color: #05a546; }
         button:disabled { background-color: #9bd8b5; cursor: not-allowed; }
+        .section-title.note { background-color: #475569; }
+
+        /* แถวสินค้า: ชื่อซ้าย / ปุ่ม − ช่อง + หน่วย ขวา */
+        .qty-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 6px; border-bottom: 1px solid #f1f5f9; border-radius: 6px; }
+        .qty-row.has-qty { background: #fef9c3; }
+        .qty-name { flex: 1; min-width: 0; font-weight: 600; color: #334155; font-size: 15px; }
+        .qty-name .num { color: #94a3b8; font-weight: 400; margin-right: 2px; }
+        .stepper { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+        .stepper button { width: 36px; height: 36px; margin: 0; padding: 0; font-size: 20px; line-height: 1; border-radius: 8px; background: #e2e8f0; color: #0f172a; }
+        .stepper button:hover { background: #cbd5e1; }
+        .stepper input.qty-input { width: 58px; padding: 6px 2px; text-align: center; font-size: 16px; }
+        .unit { width: 40px; font-size: 13px; color: #64748b; }
+        textarea#orderNote { width: 100%; box-sizing: border-box; min-height: 80px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; font-family: inherit; }
+        .note-hint { font-size: 13px; color: #64748b; margin: -4px 0 8px; }
+
+        /* หน้ายืนยันก่อนส่ง */
+        .confirm-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.55); display: none; align-items: center; justify-content: center; padding: 15px; z-index: 50; }
+        .confirm-box { background: white; border-radius: 14px; width: 100%; max-width: 420px; max-height: 90vh; display: flex; flex-direction: column; }
+        .confirm-head { padding: 16px 18px 8px; }
+        .confirm-head h3 { margin: 0 0 6px; font-size: 18px; color: #0f172a; }
+        .confirm-meta { font-size: 14px; color: #334155; line-height: 1.6; }
+        .confirm-body { overflow-y: auto; padding: 4px 18px; flex: 1; }
+        .confirm-sec { font-size: 13px; font-weight: 700; color: #64748b; margin: 10px 0 4px; }
+        .confirm-line { display: flex; justify-content: space-between; font-size: 15px; padding: 4px 0; border-bottom: 1px dashed #e2e8f0; }
+        .confirm-line b { white-space: nowrap; margin-left: 8px; }
+        .confirm-note { background: #f1f5f9; border-radius: 8px; padding: 8px 10px; font-size: 14px; white-space: pre-wrap; margin-top: 4px; }
+        .confirm-actions { display: flex; gap: 10px; padding: 14px 18px 18px; }
+        .confirm-actions button { margin: 0; }
+        .btn-back { background: #e2e8f0 !important; color: #334155 !important; flex: 0 0 100px; }
         .back-link { display: block; text-align: center; margin-top: 15px; color: #64748b; font-size: 14px; text-decoration: none; }
     </style>
 </head>
@@ -105,10 +134,27 @@
         <h3 class="section-title supplies">🛍️ ของใช้ทั่วไป</h3>
         <div id="suppliesItemsContainer"></div>
 
+        <h3 class="section-title note">📝 สั่งเพิ่ม (ของที่ไม่มีในรายการ)</h3>
+        <div class="note-hint">พิมพ์ชื่อของ + จำนวน + หน่วย บรรทัดละรายการ — ไม่ต้องสั่งทางแชทแล้ว</div>
+        <textarea id="orderNote" placeholder="เช่น&#10;โหระพา ครึ่งโล&#10;ใบเตย 40 บาท"></textarea>
 
-        <button type="submit">ส่งออเดอร์ให้ครัวกลาง</button>
+        <button type="submit" id="reviewBtn">ตรวจสอบออเดอร์</button>
     </form>
     <a class="back-link" href="index.html">&larr; กลับหน้ารวม</a>
+</div>
+
+<div class="confirm-backdrop" id="confirmModal">
+    <div class="confirm-box">
+        <div class="confirm-head">
+            <h3>ตรวจสอบก่อนส่ง</h3>
+            <div class="confirm-meta" id="confirmMeta"></div>
+        </div>
+        <div class="confirm-body" id="confirmBody"></div>
+        <div class="confirm-actions">
+            <button type="button" class="btn-back" onclick="closeConfirm()">← แก้ไข</button>
+            <button type="button" id="submitBtn" onclick="submitOrder()">✅ ยืนยันส่งออเดอร์</button>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -181,77 +227,149 @@
         { section: 'supplies', name: 'ถ้วยคราฟ 750ml' }
     ];
 
+    const SECTION_LABELS = {
+        food: '🍜 ก๋วยเตี๋ยว', veg: '🥬 ผักก๋วยเตี๋ยว', seasoning: '🧂 เครื่องปรุงก๋วยเตี๋ยว', bbq: '🥘 ผักหมูกระทะ',
+        dessert: '🍮 ขนม', krapao: '🌿 ผัดกะเพรา', drink: '🧋 ชานม กัตโตะชา', supplies: '🛍️ ของใช้ทั่วไป'
+    };
+
+    // แยกหน่วยจากวงเล็บท้ายชื่อ เช่น "ผักบุ้งจีน (โล)" -> { base: "ผักบุ้งจีน", unit: "โล" }
+    // ชื่อเต็ม (รวมวงเล็บ) ยังเป็นค่าที่ส่งเข้าระบบเหมือนเดิม เพื่อให้ตัดสต๊อก/Agent จับคู่ได้
+    function splitUnit(name) {
+        const m = name.match(/^(.*?)\s*\(([^()]+)\)\s*$/);
+        return m ? { base: m[1], unit: m[2] } : { base: name, unit: '' };
+    }
+    // ปุ่ม +/- กดทีละเท่าไร: ของชั่งกิโล ทีละครึ่ง, ของที่สั่งเป็นเงิน ทีละ 10 บาท, อื่นๆ ทีละ 1
+    function stepFor(unit) {
+        if (/^(โล|กก\.?|กิโล)$/.test(unit)) return 0.5;
+        if (unit === 'บาท') return 10;
+        return 1;
+    }
+    function r3(n) { return Math.round(n * 1000) / 1000; }
+    function esc(t) { const d = document.createElement('div'); d.textContent = String(t); return d.innerHTML; }
+
     function buildItemInputs() {
-        const containers = {
-            food: document.getElementById('foodItemsContainer'),
-            drink: document.getElementById('drinkItemsContainer'),
-            supplies: document.getElementById('suppliesItemsContainer'),
-            veg: document.getElementById('vegItemsContainer'),
-            seasoning: document.getElementById('seasoningItemsContainer'),
-            bbq: document.getElementById('bbqItemsContainer'),
-            dessert: document.getElementById('dessertItemsContainer'),
-            krapao: document.getElementById('krapaoItemsContainer')
-        };
         ORDER_ITEMS.forEach(function (item, idx) {
-            const div = document.createElement('div');
-            div.className = 'item';
-            div.innerHTML =
-                '<label>' + (idx + 1) + '. ' + item.name + ':</label>' +
-                '<input type="number" class="qty-input" data-name="' + item.name + '" min="0" step="any" inputmode="decimal" value="0">'; // ใส่ทศนิยมได้ เช่น 0.5 โล
-            containers[item.section].appendChild(div);
+            const u = splitUnit(item.name);
+            const step = stepFor(u.unit);
+            const row = document.createElement('div');
+            row.className = 'qty-row';
+            row.innerHTML =
+                '<div class="qty-name"><span class="num">' + (idx + 1) + '.</span> ' + esc(u.base) + '</div>' +
+                '<div class="stepper">' +
+                    '<button type="button" class="minus" aria-label="ลด">−</button>' +
+                    '<input type="number" class="qty-input" min="0" step="any" inputmode="decimal" value="0">' +
+                    '<button type="button" class="plus" aria-label="เพิ่ม">+</button>' +
+                    '<span class="unit">' + esc(u.unit) + '</span>' +
+                '</div>';
+            const input = row.querySelector('.qty-input');
+            input.dataset.name = item.name;  // ชื่อเต็มที่ส่งเข้าระบบ
+            input.dataset.idx = idx;
+            row.querySelector('.minus').addEventListener('click', function () {
+                input.value = Math.max(0, r3((parseFloat(input.value) || 0) - step)); onQtyChange(input);
+            });
+            row.querySelector('.plus').addEventListener('click', function () {
+                input.value = r3((parseFloat(input.value) || 0) + step); onQtyChange(input);
+            });
+            input.addEventListener('input', function () { onQtyChange(input); });
+            input.addEventListener('focus', function () { if (input.value === '0') input.select(); });
+            document.getElementById(item.section + 'ItemsContainer').appendChild(row);
         });
     }
 
+    function onQtyChange(input) {
+        input.closest('.qty-row').classList.toggle('has-qty', (parseFloat(input.value) || 0) > 0);
+        updateReviewButton();
+    }
+
     function collectItems() {
-        const inputs = document.querySelectorAll('.qty-input');
         const items = [];
-        inputs.forEach(function (input) {
-            const qty = Math.round((parseFloat(input.value) || 0) * 1000) / 1000; // รองรับครึ่งโล (0.5)
-            if (qty > 0) {
-                items.push({ name: input.dataset.name, qty: qty });
-            }
+        document.querySelectorAll('.qty-input').forEach(function (input) {
+            const qty = r3(parseFloat(input.value) || 0); // รองรับครึ่งโล (0.5)
+            if (qty > 0) items.push({ name: input.dataset.name, qty: qty, idx: Number(input.dataset.idx) });
         });
         return items;
     }
 
+    function updateReviewButton() {
+        const n = collectItems().length;
+        const hasNote = document.getElementById('orderNote').value.trim() !== '';
+        document.getElementById('reviewBtn').textContent =
+            'ตรวจสอบออเดอร์' + (n ? ' (' + n + ' รายการ' + (hasNote ? ' + สั่งเพิ่ม' : '') + ')' : (hasNote ? ' (สั่งเพิ่ม)' : ''));
+    }
+
+    let pendingOrder = null;
+
+    // ขั้นที่ 1: กด "ตรวจสอบออเดอร์" -> สรุปให้ดูก่อน (form จะเช็คสาขา/รอบส่งให้ก่อนถึงตรงนี้)
     document.getElementById('orderForm').addEventListener('submit', function (e) {
         e.preventDefault();
-
         const items = collectItems();
-        if (items.length === 0) {
-            alert('กรุณาใส่จำนวนอย่างน้อย 1 รายการ');
+        const note = document.getElementById('orderNote').value.trim();
+        if (items.length === 0 && !note) {
+            alert('กรุณาใส่จำนวนอย่างน้อย 1 รายการ หรือพิมพ์ในช่อง "สั่งเพิ่ม"');
             return;
         }
-
-        const orderData = {
+        pendingOrder = {
             action: 'submitOrder',
             branch: document.getElementById('branchName').value,
             deliveryRound: document.getElementById('deliveryRound').value,
-            items: items,
-            timestamp: new Date().toISOString()
+            items: items.map(function (i) { return { name: i.name, qty: i.qty }; }),
+            note: note
         };
 
-        const submitBtn = document.querySelector('button[type="submit"]');
-        submitBtn.innerHTML = "กำลังส่งออเดอร์...";
-        submitBtn.disabled = true;
+        const roundSel = document.getElementById('deliveryRound');
+        document.getElementById('confirmMeta').innerHTML =
+            'สาขา: <b>' + esc(pendingOrder.branch) + '</b><br>รอบส่ง: <b>' + esc(roundSel.options[roundSel.selectedIndex].text) + '</b>';
+
+        let html = '';
+        let lastSection = null;
+        items.forEach(function (i) {
+            const sec = ORDER_ITEMS[i.idx].section;
+            if (sec !== lastSection) { html += '<div class="confirm-sec">' + esc(SECTION_LABELS[sec] || sec) + '</div>'; lastSection = sec; }
+            const u = splitUnit(i.name);
+            html += '<div class="confirm-line"><span>' + esc(u.base) + '</span><b>' + i.qty + (u.unit ? ' ' + esc(u.unit) : '') + '</b></div>';
+        });
+        if (note) html += '<div class="confirm-sec">📝 สั่งเพิ่ม</div><div class="confirm-note">' + esc(note) + '</div>';
+        document.getElementById('confirmBody').innerHTML = html;
+
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = false;
+        btn.textContent = '✅ ยืนยันส่งออเดอร์';
+        document.getElementById('confirmModal').style.display = 'flex';
+    });
+
+    function closeConfirm() {
+        document.getElementById('confirmModal').style.display = 'none';
+    }
+
+    // ขั้นที่ 2: ยืนยัน -> ส่งเข้าระบบ
+    function submitOrder() {
+        if (!pendingOrder) return;
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        btn.textContent = 'กำลังส่ง...';
+        pendingOrder.timestamp = new Date().toISOString();
 
         fetch(API_URL, {
             method: 'POST',
             mode: 'no-cors', // สำคัญ: ป้องกันปัญหาการข้ามโดเมน (CORS) — จะอ่าน response ไม่ได้ แต่ยิงข้อมูลได้ปกติ
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(orderData)
+            body: JSON.stringify(pendingOrder)
         }).then(function () {
-            alert(`ส่งออเดอร์ของ ${orderData.branch} เรียบร้อยแล้ว!`);
+            alert('ส่งออเดอร์ของ ' + pendingOrder.branch + ' เรียบร้อยแล้ว!');
+            closeConfirm();
             document.getElementById('orderForm').reset();
-            submitBtn.innerHTML = "ส่งออเดอร์ให้ครัวกลาง";
-            submitBtn.disabled = false;
+            document.querySelectorAll('.qty-row.has-qty').forEach(function (r) { r.classList.remove('has-qty'); });
+            updateReviewButton();
+            pendingOrder = null;
+            window.scrollTo(0, 0);
         }).catch(function () {
             alert('เกิดข้อผิดพลาดในการส่ง กรุณาลองใหม่');
-            submitBtn.innerHTML = "ส่งออเดอร์ให้ครัวกลาง";
-            submitBtn.disabled = false;
+            btn.disabled = false;
+            btn.textContent = '✅ ยืนยันส่งออเดอร์';
         });
-    });
+    }
 
+    document.getElementById('orderNote').addEventListener('input', updateReviewButton);
     buildItemInputs();
 </script>
 
